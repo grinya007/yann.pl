@@ -24,11 +24,12 @@ sub new {
 sub fit {
   my ($self, $x, $y) = @_;
   
-  my $y_hat = $x;
+  my $y_hat = $x->transpose();
   for my $layer (@{ $self->{'_layers'} }) {
     $y_hat = $layer->forward($y_hat);
   }
 
+  $y = $y->transpose();
   my $loss = $self->_loss($y_hat, $y);
 
   my $d_y_hat = $self->_d_loss($y_hat, $y);
@@ -47,7 +48,7 @@ sub fit {
 
 sub predict {
   my ($self, $x) = @_;
-  my $y_hat = $x;
+  my $y_hat = $x->transpose();
   for my $layer (@{ $self->{'_layers'} }) {
     $y_hat = $layer->forward($y_hat);
   }

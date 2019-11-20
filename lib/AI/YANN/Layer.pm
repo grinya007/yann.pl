@@ -18,8 +18,8 @@ sub new {
     $class->can($activation_f)
   );
   return bless({
-    '_W'              => AI::YANN::Parameter->new($out_size, $in_size, $weight_sd),
-    '_b'              => AI::YANN::Parameter->new($out_size, 1, $weight_sd),
+    '_W'              => AI::YANN::Parameter->new($in_size, $out_size, $weight_sd),
+    '_b'              => AI::YANN::Parameter->new(1, $out_size, $weight_sd),
     '_activation_f'   => $activation_f,
     '_activation_b'   => $activation_b,
     '_input'          => undef,
@@ -32,10 +32,10 @@ sub update {
   my ($self, $lr) = @_;
   for my $p (qw/_W _b/) {
     my $g = $self->{$p}->gradient();
-    $self->{$p}->add_momentum($g ** 2);
+    #$self->{$p}->add_momentum($g ** 2);
     $self->{$p}->add_value(
-      (-$lr * $g * $self->{'_input'}->dim(1))
-      / ($self->{$p}->momentum() + 1e-8) ** 0.5
+      (-$lr * $g)
+      #/ ($self->{$p}->momentum() + 1e-8) ** 0.5
     );
   }
 }
@@ -66,7 +66,7 @@ sub from_hash {
 sub forward {
   my ($self, $input) = @_;
   $self->{'_input'} = $input;
-  $self->{'_linear_out'} = $input x $self->{'_W'}->value() + $self->{'_b'}->value();
+  $self->{'_linear_out'} = ($self->{'_W'}->value() x $input) + $self->{'_b'}->value();
   $self->{'_activation_out'} = $self->${ \$self->{'_activation_f'} }(
     $self->{'_linear_out'}
   );
@@ -75,13 +75,18 @@ sub forward {
 
 sub backward {
   my ($self, $d_activation_out_next) = @_;
-  my $d_linear_out = $self->${ \$self->{'_activation_b'} }(
+  my $d_activation_out = $self->${ \$self->{'_activation_b'} }(
     $d_activation_out_next, $self->{'_linear_out'}
   );
-  $self->{'_W'}->set_gradient( $self->{'_input'}->transpose() x $d_linear_out );
-  $self->{'_b'}->set_gradient( $d_linear_out );
+  my $m = $self->{'_input'}->dim(0);
+  $self->{'_W'}->set_gradient( (($d_activation_out x $self->{'_input'}->transpose()) / $m) );
+  $self->{'_b'}->set_gradient( ($d_activation_out->sumover()->transpose() / $m) );
+  #$self->{'_b'}->set_gradient( $d_linear_out );
 
-  return $d_activation_out_next x $self->{'_W'}->value()->transpose();
+  #print $self->{'_W'}->value(), $self->{'_W'}->gradient(), "\n\n";
+  #print $self->{'_b'}->value(), $self->{'_b'}->gradient(), "\n\n";
+
+  return $self->{'_W'}->value()->transpose() x $d_activation_out;
 }
 
 sub __fwd_linear {
@@ -127,8 +132,10 @@ sub __fwd_softmax {
 
 sub __bwd_softmax {
   my ($self, $dx_next, $x) = @_;
-  my $sm = $self->__fwd_softmax($x);
-  return $sm - $dx_next;
+  #my $sm = $self->__fwd_softmax($x);
+  #my $b = ($sm - $dx_next) / $dx_next->dim(1);
+  #print $dx_next->dim(1), $sm, $dx_next, $b, "\n\n";
+  return $dx_next;
 }
 
 1;
