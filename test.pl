@@ -17,7 +17,7 @@ my $model = AI::YANN::Model::Regression->new(
     #{ 'output_size' => 32, 'activation' => 'relu' },
     { 'output_size' => 1 },
   ],
-  'lr'      => 0.01,
+  'lr'      => 0.1,
 );
 
 my $epochs = 500;

@@ -81,10 +81,6 @@ sub backward {
   my $m = $self->{'_input'}->dim(0);
   $self->{'_W'}->set_gradient( (($d_activation_out x $self->{'_input'}->transpose()) / $m) );
   $self->{'_b'}->set_gradient( ($d_activation_out->sumover()->transpose() / $m) );
-  #$self->{'_b'}->set_gradient( $d_linear_out );
-
-  #print $self->{'_W'}->value(), $self->{'_W'}->gradient(), "\n\n";
-  #print $self->{'_b'}->value(), $self->{'_b'}->gradient(), "\n\n";
 
   return $self->{'_W'}->value()->transpose() x $d_activation_out;
 }
@@ -127,14 +123,11 @@ sub __bwd_sigmoid {
 sub __fwd_softmax {
   my ($self, $x) = @_;
   my $exp = exp(1) ** ($x - $x->max());
-  return $exp / $exp->sum();
+  return $exp / $exp->transpose()->sumover();
 }
 
 sub __bwd_softmax {
   my ($self, $dx_next, $x) = @_;
-  #my $sm = $self->__fwd_softmax($x);
-  #my $b = ($sm - $dx_next) / $dx_next->dim(1);
-  #print $dx_next->dim(1), $sm, $dx_next, $b, "\n\n";
   return $dx_next;
 }
 

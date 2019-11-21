@@ -10,14 +10,16 @@ use PDL;
 
 my $model = AI::YANN::Model::Classification->new(
   'layers'  => [
-    { 'output_size' => 1000, 'input_size' => 28*28, 'activation' => 'sigmoid' },
+    { 'output_size' => 1000, 'input_size' => 28*28, 'activation' => 'relu' },
+    #{ 'output_size' => 1000, 'activation' => 'relu' },
+    { 'output_size' => 500, 'activation' => 'relu' },
     #{ 'output_size' => 500, 'activation' => 'relu' },
     { 'output_size' => 10, 'activation' => 'softmax' },
   ],
   'lr'      => 0.1,
 );
 
-my $b = batches(100, 10, 255);
+my $b = batches(100, 20, 255);
 
 my $epochs = 10;
 for my $epoch (1 .. $epochs) {
@@ -29,10 +31,12 @@ for my $epoch (1 .. $epochs) {
   print "$epoch/$epochs ", pdl(\@losses)->avg(), "\n";
 }
 
-my $t = batches(1001, 1, 1);
-print $model->predict($t->[-1][0] / 255), "\n";
-print $t->[-1][0]->reshape(28, 28);
-print $t->[-1][1];
+my $t = batches(2020, 1, 1);
+for (1 .. 20) {
+  print $model->predict($t->[-$_][0] / 255), "\n";
+  print $t->[-$_][0]->reshape(28, 28);
+  print $t->[-$_][1];
+}
 
 sub batches {
   my ($m, $n, $f) = @_;

@@ -6,7 +6,7 @@ use PDL;
 
 sub new {
   my ($class, $m, $n, $sd) = @_;
-  my $value     = random($m, $n) * $sd;
+  my $value     = grandom($m, $n) * $sd;
   return bless({
     '_value'    => $value,
     '_gradient' => undef,
