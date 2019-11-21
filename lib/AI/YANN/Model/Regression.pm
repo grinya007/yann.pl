@@ -12,7 +12,7 @@ sub _loss {
 sub _d_loss {
   my ($self, $y_hat, $y) = @_;
   #print $y_hat, $y;
-  return 2 / $y->dim(0) * ($y_hat - $y);
+  return (2 / $y->dim(0)) * ($y_hat - $y);
 }
 
 1;
