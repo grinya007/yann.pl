@@ -19,7 +19,7 @@ my $model = AI::YANN::Model::Classification->new(
   'lr'      => 0.1,
 );
 
-my $b = batches(100, 20, 255);
+my $b = batches(50, 50, 255);
 
 my $epochs = 10;
 for my $epoch (1 .. $epochs) {
@@ -31,11 +31,12 @@ for my $epoch (1 .. $epochs) {
   print "$epoch/$epochs ", pdl(\@losses)->avg(), "\n";
 }
 
-my $t = batches(2020, 1, 1);
+my $t = batches(2520, 1, 1);
 for (1 .. 20) {
-  print $model->predict($t->[-$_][0] / 255), "\n";
+  print "\n", "=" x 100, "\n";
+  my $p = $model->predict($t->[-$_][0] / 255);
   print $t->[-$_][0]->reshape(28, 28);
-  print $t->[-$_][1];
+  print $t->[-$_][1], $p;
 }
 
 sub batches {
