@@ -11,24 +11,21 @@ use JSON::XS qw/decode_json/;
 use PDL;
 
 my $model = AI::YANN::Model::Regression->new(
-  'layers'  => [
-    { 'output_size' => 16, 'input_size' => 218, 'activation' => 'sigmoid' },
-    #{ 'output_size' => 128, 'activation' => 'sigmoid' },
-    #{ 'output_size' => 64, 'activation' => 'relu' },
-    #{ 'output_size' => 64, 'activation' => 'relu' },
-    #{ 'output_size' => 64, 'activation' => 'relu' },
-    { 'output_size' => 16, 'activation' => 'sigmoid' },
-    { 'output_size' => 16, 'activation' => 'sigmoid' },
+  'layers'    => [
+    { 'output_size' => 64, 'input_size' => 218, 'activation' => 'sigmoid' },
+    { 'output_size' => 32, 'activation' => 'sigmoid' },
+    #{ 'output_size' => 32, 'activation' => 'relu' },
     { 'output_size' => 1 },
   ],
-  'lr'      => 0.1,
+  'optimizer' => 'adagrad',
+  'lr'        => 0.01,
 );
 
-my $b = batches(7, 100, $ARGV[1]);
-my @train = @$b[0 .. $#$b - 1];
-my @val = @$b[$#$b - 1 .. $#$b];
+my $b = batches(500, 100, $ARGV[0]);
+my @train = @$b[0 .. $#$b - 10];
+my @val = @$b[$#$b - 10 .. $#$b];
 
-my $epochs = 300;
+my $epochs = 30;
 for my $epoch (1 .. $epochs) {
   my @losses;
   for my $batch (@train) {
@@ -43,9 +40,9 @@ for my $epoch (1 .. $epochs) {
   print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
 }
 
-my $tests = batches(3, 5, $ARGV[1]);
+my $tests = batches(3, 5, $ARGV[1], 1);
 for my $test (@$tests) {
-  print $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n\n";
+  print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }
 
 sub batches {
