@@ -32,10 +32,10 @@ sub update {
   my ($self, $lr) = @_;
   for my $p (qw/_W _b/) {
     my $g = $self->{$p}->gradient();
-    #$self->{$p}->add_momentum($g ** 2);
+    $self->{$p}->add_momentum($g ** 2);
     $self->{$p}->add_value(
       (-$lr * $g)
-      #/ ($self->{$p}->momentum() + 1e-8) ** 0.5
+      / ($self->{$p}->momentum() + 1e-8) ** 0.5
     );
   }
 }

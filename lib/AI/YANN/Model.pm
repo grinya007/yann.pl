@@ -46,6 +46,12 @@ sub fit {
   return $loss;
 }
 
+sub validate {
+  my ($self, $x, $y) = @_;
+  my $y_hat = $self->predict($x);
+  return $self->_loss($y_hat, $y);
+}
+
 sub predict {
   my ($self, $x) = @_;
   my $y_hat = $x->transpose();
