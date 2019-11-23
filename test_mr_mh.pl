@@ -11,36 +11,56 @@ use JSON::XS qw/decode_json/;
 use PDL;
 
 my $model = AI::YANN::Model::Regression->new(
-  'layers'    => [
-    { 'output_size' => 256, 'input_size' => 218, 'activation' => 'relu' },
-    { 'output_size' => 256, 'activation' => 'relu' },
-    { 'output_size' => 256, 'activation' => 'relu' },
-    { 'output_size' => 1 },
-  ],
-  'optimizer' => 'adagrad',
-  'lr'        => 0.01,
+  'lr'            => 0.01,
+  'optimizer'     => 'adagrad',
+  'output'        => {
+    'output_size'   => 1,
+    'input_layers'  => [{
+      'activation'    => 'relu',
+      'output_size'   => 256,
+      'input_layers'  => [{
+        'activation'    => 'relu',
+        'output_size'   => 240,
+        'input_layers'  => [{
+          'activation'    => 'relu',
+          'output_size'   => 512,
+          'input_size'    => 200,
+          'input_idx'     => 0,
+        }]
+      }, {
+        'activation'    => 'relu',
+        'output_size'   => 16,
+        'input_size'    => 18,
+        'input_idx'     => 1,
+      }],
+    }],
+  },
 );
 
-my $b = batches(50, 50, $ARGV[0]);
-my @train = @$b[0 .. $#$b - 1];
-my @val = @$b[$#$b - 1 .. $#$b];
+#use Data::Dumper;
+#say Dumper $model;
+#exit;
 
-my $epochs = 40;
-for my $epoch (1 .. $epochs) {
-  my @losses;
-  for my $batch (@train) {
-    my $loss = $model->fit(@$batch);
-    push(@losses, $loss);
-  }
-  my @vlosses;
-  for my $batch (@val) {
-    my $loss = $model->validate(@$batch);
-    push(@vlosses, $loss);
-  }
-  print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
-}
+#my $b = batches(50, 50, $ARGV[0]);
+#my @train = @$b[0 .. $#$b - 1];
+#my @val = @$b[$#$b - 1 .. $#$b];
 
-my $tests = batches(5, 10, $ARGV[0]);
+#my $epochs = 40;
+#for my $epoch (1 .. $epochs) {
+  #my @losses;
+  #for my $batch (@train) {
+    #my $loss = $model->fit(@$batch);
+    #push(@losses, $loss);
+  #}
+  #my @vlosses;
+  #for my $batch (@val) {
+    #my $loss = $model->validate(@$batch);
+    #push(@vlosses, $loss);
+  #}
+  #print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
+#}
+
+my $tests = batches(1, 3, $ARGV[0]);
 for my $test (@$tests) {
   print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }
@@ -57,16 +77,17 @@ sub batches {
 
   my @batches;
   OUTER: for my $i (1 .. $m) {
-    my (@x, @y);
+    my (@x0, @x1, @y);
     for my $j (1 .. $n) {
       my $l = $f->{$file}->getline();
       last OUTER unless $l;
       chomp($l);
-      my ($x, $y) = decode($l);
-      push(@x, $x);
+      my ($x0, $x1, $y) = decode($l);
+      push(@x0, $x0);
+      push(@x1, $x1);
       push(@y, $y);
     }
-    push(@batches, [pdl(\@x), pdl(\@y)]);
+    push(@batches, [pdl(\@x0, \@x1), pdl(\@y)]);
   }
   return \@batches;
 }
@@ -122,7 +143,7 @@ sub decode {
   }
   my @countries_oh = (0) x 200;
   @countries_oh[@$countries{@$cids}] = (1) x scalar(@$cids);
-  push(@x, @countries_oh);
+  #push(@x, @countries_oh);
 
   state $agg = {
     'None'        => 0,
@@ -135,5 +156,5 @@ sub decode {
   $agg_oh[$agg->{$l{'aggregation'}}] = 1;
   push(@x, @agg_oh);
 
-  return \@x, [ $l{'memory_usage'} / 1024 ** 3 ];
+  return \@countries_oh, \@x, [ $l{'memory_usage'} / 1024 ** 3 ];
 }

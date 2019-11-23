@@ -10,7 +10,7 @@ sub new {
   return bless({
     '_value'    => $value,
     '_gradient' => undef,
-    '_momentum' => undef,
+    '_momentum' => 0,
   }, $class);
 }
 

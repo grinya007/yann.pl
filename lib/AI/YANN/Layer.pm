@@ -7,19 +7,27 @@ use AI::YANN::Utils qw/is_num runtime_require/;
 use Carp qw/confess/;
 
 sub new {
-  my ($class, $in_size, $out_size, $activation, $weight_sd) = @_;
+  my ($class, $in_size, $out_size, $activation, $input_idx, $input_layers, $weight_sd) = @_;
   confess("Input size isn't numeric") unless (is_num($in_size));
   confess("Output size isn't numeric") unless (is_num($out_size));
-  $activation //= 'linear';
-  $weight_sd  //= 0.1;
+  $activation   //= 'linear';
+  $weight_sd    //= 0.1;
 
   return bless({
     '_W'              => AI::YANN::Parameter->new($in_size, $out_size, $weight_sd),
     '_b'              => AI::YANN::Parameter->new(1, $out_size, $weight_sd),
+    '_input_idx'      => $input_idx,
+    '_input_layers'   => $input_layers,
+    '_input_size'     => $in_size,
     '_input'          => undef,
     '_linear_out'     => undef,
     '_activation_out' => undef,
   }, runtime_require("${class}::$activation"));
+}
+
+sub input_layers {
+  my ($self) = @_;
+  return $self->{'_input_layers'};
 }
 
 sub parameters {
@@ -42,14 +50,25 @@ sub from_hash {
     $hash->{'input_size'},
     $hash->{'output_size'},
     $hash->{'activation'},
+    $hash->{'input_idx'},
+    $hash->{'input_layers'},
     $hash->{'weight_sd'},
   );
 }
 
 sub forward {
   my ($self, $input) = @_;
-  $self->{'_input'} = $input;
-  $self->{'_linear_out'} = ($self->{'_W'}->value() x $input) + $self->{'_b'}->value();
+  if (defined $self->{'_input_idx'}) {
+    $self->{'_input'} = $input->slice(
+      sprintf(':, :, %d:%d', ($self->{'_input_idx'}) x 2)
+    )->reshape(-1)->slice(
+      sprintf(':, :%d', $self->{'_input_size'} - 1)
+    );
+  }
+  else {
+    $self->{'_input'} = $input;
+  }
+  $self->{'_linear_out'} = ($self->{'_W'}->value() x $self->{'_input'}) + $self->{'_b'}->value();
   $self->{'_activation_out'} = $self->_forward($self->{'_linear_out'});
   return $self->{'_activation_out'};
 }

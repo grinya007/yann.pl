@@ -3,32 +3,35 @@ use strict;
 use warnings;
 
 use AI::YANN::Layer;
+use PDL;
 
 sub new {
   my ($class, %args) = @_;
-  
-  my $prev_out_size;
-  my @layers = @{ $args{'layers'} };
-  for my $i (0 .. $#layers) {
-    $layers[$i]{'input_size'} = $prev_out_size if $prev_out_size;
-    $prev_out_size = $layers[$i]{'output_size'};
-    $layers[$i] = AI::YANN::Layer->from_hash($layers[$i]);
-  }
-
   return bless({
-    '_layers'     => \@layers,
+    '_output'     => $class->_create_layers($args{'output'}),
     '_optimizer'  => $args{'optimizer'} // 'gradient_descent',
     '_lr'         => $args{'lr'} // 0.01,
   }, $class);
 }
 
+sub _create_layers {
+  my ($class, $hash) = @_;
+  if ($hash->{'input_layers'}) {
+    $hash->{'input_size'} = 0;
+    for (@{ $hash->{'input_layers'} }) {
+      $hash->{'input_size'} += $_->{'output_size'};
+      $_ = $class->_create_layers($_);
+    }
+  }
+  return AI::YANN::Layer->from_hash($hash);
+}
+
 sub fit {
   my ($self, $x, $y) = @_;
   
-  my $y_hat = $x->transpose();
-  for my $layer (@{ $self->{'_layers'} }) {
-    $y_hat = $layer->forward($y_hat);
-  }
+  my $y_hat = $self->_forward(
+    $self->{'_output'}, $x->transpose()
+  );
 
   $y = $y->transpose();
   my $loss = $self->_loss($y_hat, $y);
@@ -51,11 +54,9 @@ sub validate {
 
 sub predict {
   my ($self, $x) = @_;
-  my $y_hat = $x->transpose();
-  for my $layer (@{ $self->{'_layers'} }) {
-    $y_hat = $layer->forward($y_hat);
-  }
-  return $y_hat;
+  return $self->_forward(
+    $self->{'_output'}, $x->transpose()
+  );
 }
 
 sub update {
@@ -71,6 +72,20 @@ sub update {
     }
     $layer->clean_up();
   }
+}
+
+sub _forward {
+  my ($self, $layer, $x) = @_;
+  my $input = $x->transpose();
+  if (my $input_layers = $layer->input_layers()) {
+    $input = null();
+    for (@$input_layers) {
+      $input = $input->append(
+        $self->_forward($_, $x)->transpose()
+      );
+    }
+  }
+  return $layer->forward($input->transpose());
 }
 
 sub _gradient_descent {
