@@ -20,18 +20,44 @@ my $model = AI::YANN::Model::Regression->new(
       'output_size'   => 256,
       'input_layers'  => [{
         'activation'    => 'relu',
-        'output_size'   => 240,
+        'output_size'   => 256,
         'input_layers'  => [{
           'activation'    => 'relu',
-          'output_size'   => 512,
-          'input_size'    => 200,
-          'input_idx'     => 0,
-        }]
-      }, {
-        'activation'    => 'relu',
-        'output_size'   => 16,
-        'input_size'    => 18,
-        'input_idx'     => 1,
+          'output_size'   => 64,
+          'input_layers'  => [{
+            'activation'    => 'relu',
+            'output_size'   => 256,
+            'input_size'    => 200,
+            'input_idx'     => 0,
+          }]
+        }, {
+          'activation'    => 'sigmoid',
+          'output_size'   => 64,
+          'input_layers'  => [{
+            'activation'    => 'sigmoid',
+            'output_size'   => 256,
+            'input_size'    => 200,
+            'input_idx'     => 0,
+          }]
+        }, {
+          'activation'    => 'relu',
+          'output_size'   => 32,
+          'input_layers'  => [{
+            'activation'    => 'relu',
+            'output_size'   => 64,
+            'input_size'    => 18,
+            'input_idx'     => 1,
+          }],
+        }, {
+          'activation'    => 'sigmoid',
+          'output_size'   => 32,
+          'input_layers'  => [{
+            'activation'    => 'sigmoid',
+            'output_size'   => 64,
+            'input_size'    => 18,
+            'input_idx'     => 1,
+          }],
+        }],
       }],
     }],
   },
@@ -41,26 +67,26 @@ my $model = AI::YANN::Model::Regression->new(
 #say Dumper $model;
 #exit;
 
-#my $b = batches(50, 50, $ARGV[0]);
-#my @train = @$b[0 .. $#$b - 1];
-#my @val = @$b[$#$b - 1 .. $#$b];
+my $b = batches(50, 50, $ARGV[0]);
+my @train = @$b[0 .. $#$b - 5];
+my @val = @$b[$#$b - 4 .. $#$b];
 
-#my $epochs = 40;
-#for my $epoch (1 .. $epochs) {
-  #my @losses;
-  #for my $batch (@train) {
-    #my $loss = $model->fit(@$batch);
-    #push(@losses, $loss);
-  #}
-  #my @vlosses;
-  #for my $batch (@val) {
-    #my $loss = $model->validate(@$batch);
-    #push(@vlosses, $loss);
-  #}
-  #print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
-#}
+my $epochs = 40;
+for my $epoch (1 .. $epochs) {
+  my @losses;
+  for my $batch (@train) {
+    my $loss = $model->fit(@$batch);
+    push(@losses, $loss);
+  }
+  my @vlosses;
+  for my $batch (@val) {
+    my $loss = $model->validate(@$batch);
+    push(@vlosses, $loss);
+  }
+  print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
+}
 
-my $tests = batches(1, 3, $ARGV[0]);
+my $tests = batches(10, 10, $ARGV[0]);
 for my $test (@$tests) {
   print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }

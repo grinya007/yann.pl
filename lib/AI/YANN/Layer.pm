@@ -19,6 +19,7 @@ sub new {
     '_input_idx'      => $input_idx,
     '_input_layers'   => $input_layers,
     '_input_size'     => $in_size,
+    '_output_size'    => $out_size,
     '_input'          => undef,
     '_linear_out'     => undef,
     '_activation_out' => undef,
@@ -28,6 +29,11 @@ sub new {
 sub input_layers {
   my ($self) = @_;
   return $self->{'_input_layers'};
+}
+
+sub output_size {
+  my ($self) = @_;
+  return $self->{'_output_size'};
 }
 
 sub parameters {

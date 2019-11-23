@@ -36,12 +36,12 @@ sub fit {
   $y = $y->transpose();
   my $loss = $self->_loss($y_hat, $y);
 
-  my $d_y_hat = $self->_d_loss($y_hat, $y);
-  for my $layer (reverse @{ $self->{'_layers'} }) {
-    $d_y_hat = $layer->backward($d_y_hat);
-  }
+  my $d_loss = $self->_d_loss($y_hat, $y);
+  $self->_backward(
+    $self->{'_output'}, $d_loss
+  );
 
-  $self->update();
+  $self->_update($self->{'_output'});
 
   return $loss;
 }
@@ -59,18 +59,21 @@ sub predict {
   );
 }
 
-sub update {
-  my ($self) = @_;
-  for my $layer (@{ $self->{'_layers'} }) {
-    for my $param (@{ $layer->parameters() }) {
-      if ($self->{'_optimizer'} eq 'adagrad') {
-        $self->_adagrad($param);
-      }
-      else {
-        $self->_gradient_descent($param);
-      }
+sub _update {
+  my ($self, $layer) = @_;
+  for my $param (@{ $layer->parameters() }) {
+    if ($self->{'_optimizer'} eq 'adagrad') {
+      $self->_adagrad($param);
     }
-    $layer->clean_up();
+    else {
+      $self->_gradient_descent($param);
+    }
+  }
+  $layer->clean_up();
+  if (my $input_layers = $layer->input_layers()) {
+    for (@$input_layers) {
+      $self->_update($_);
+    }
   }
 }
 
@@ -86,6 +89,21 @@ sub _forward {
     }
   }
   return $layer->forward($input->transpose());
+}
+
+sub _backward {
+  my ($self, $layer, $d_loss) = @_;
+  $d_loss = $layer->backward($d_loss);
+  if (my $input_layers = $layer->input_layers()) {
+    my $slice_from = 0;
+    for (@$input_layers) {
+      $self->_backward(
+        $_, $d_loss->transpose()->slice(
+          sprintf('%d:%d', $slice_from, $slice_from + $_->output_size() - 1)
+        )->transpose());
+      $slice_from += $_->output_size();
+    }
+  }
 }
 
 sub _gradient_descent {
