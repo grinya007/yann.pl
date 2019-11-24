@@ -7,7 +7,7 @@ use AI::YANN::Utils qw/is_num runtime_require/;
 use Carp qw/confess/;
 
 sub new {
-  my ($class, $in_size, $out_size, $activation, $input_idx, $input_layers, $weight_sd) = @_;
+  my ($class, $activation, $out_size, $in_size, $input_idx, $weight_sd, $input_layers) = @_;
   confess("Input size isn't numeric") unless (is_num($in_size));
   confess("Output size isn't numeric") unless (is_num($out_size));
   $activation   //= 'linear';
@@ -24,6 +24,26 @@ sub new {
     '_linear_out'     => undef,
     '_activation_out' => undef,
   }, runtime_require("${class}::$activation"));
+}
+
+sub builder {
+  my ($class) = @_;
+  return sub {
+    my (@args) = @_;
+    my @new_args = ((undef) x 6);
+    for my $i (0 .. $#args) {
+      if (ref $args[$i]) {
+        $new_args[2] //= 0;
+        $new_args[2] += $args[$i]->output_size(),
+        $new_args[5] //= [];
+        push(@{ $new_args[5] }, $args[$i])
+      }
+      else {
+        $new_args[$i] = $args[$i]
+      }
+    }
+    return $class->new(@new_args);
+  };
 }
 
 sub input_layers {
@@ -50,26 +70,10 @@ sub clean_up {
   $self->{'_b'}->set_gradient(undef);
 }
 
-sub from_hash {
-  my ($class, $hash) = @_;
-  return $class->new(
-    $hash->{'input_size'},
-    $hash->{'output_size'},
-    $hash->{'activation'},
-    $hash->{'input_idx'},
-    $hash->{'input_layers'},
-    $hash->{'weight_sd'},
-  );
-}
-
 sub forward {
   my ($self, $input) = @_;
   if (defined $self->{'_input_idx'}) {
-    $self->{'_input'} = $input->slice(
-      sprintf(':, :, %d:%d', ($self->{'_input_idx'}) x 2)
-    )->reshape(-1)->slice(
-      sprintf(':, :%d', $self->{'_input_size'} - 1)
-    );
+    $self->{'_input'} = $input->[ $self->{'_input_idx'} ]->transpose();
   }
   else {
     $self->{'_input'} = $input;
