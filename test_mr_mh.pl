@@ -23,7 +23,7 @@ my $model = AI::YANN::Model::Regression->new(
         'output_size'   => 256,
         'input_layers'  => [{
           'activation'    => 'relu',
-          'output_size'   => 64,
+          'output_size'   => 128,
           'input_layers'  => [{
             'activation'    => 'relu',
             'output_size'   => 256,
@@ -32,7 +32,7 @@ my $model = AI::YANN::Model::Regression->new(
           }]
         }, {
           'activation'    => 'sigmoid',
-          'output_size'   => 64,
+          'output_size'   => 128,
           'input_layers'  => [{
             'activation'    => 'sigmoid',
             'output_size'   => 256,
@@ -41,7 +41,7 @@ my $model = AI::YANN::Model::Regression->new(
           }]
         }, {
           'activation'    => 'relu',
-          'output_size'   => 32,
+          'output_size'   => 64,
           'input_layers'  => [{
             'activation'    => 'relu',
             'output_size'   => 64,
@@ -50,7 +50,7 @@ my $model = AI::YANN::Model::Regression->new(
           }],
         }, {
           'activation'    => 'sigmoid',
-          'output_size'   => 32,
+          'output_size'   => 64,
           'input_layers'  => [{
             'activation'    => 'sigmoid',
             'output_size'   => 64,
