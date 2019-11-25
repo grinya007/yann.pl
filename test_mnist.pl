@@ -5,17 +5,21 @@ use warnings;
 use FindBin qw/$RealBin/;
 use lib "$RealBin/lib";
 
+use AI::YANN::Layer;
 use AI::YANN::Model::Classification;
 use PDL;
 
+my $lb = AI::YANN::Layer->builder();
 my $model = AI::YANN::Model::Classification->new(
-  'layers'  => [
-    { 'output_size' => 512, 'input_size' => 28*28, 'activation' => 'relu' },
-    { 'output_size' => 512, 'activation' => 'relu' },
-    { 'output_size' => 256, 'activation' => 'relu' },
-    { 'output_size' => 10, 'activation' => 'softmax' },
-  ],
-  'lr'      => 0.1,
+  'lr'            => 0.01,
+  'optimizer'     => 'adagrad',
+  'output'        => $lb->('softmax', 10,
+    $lb->('relu', 256,
+      $lb->('relu', 512,
+        $lb->('relu', 512, 28*28),
+      ),
+    ),
+  ),
 );
 
 my $b = batches(50, 100, 255);
@@ -62,7 +66,7 @@ sub batches {
       push(@x, float([unpack('C*', $ibuf)]) / $f);
       push(@y, [unpack('C', $lbuf)]);
     }
-    push(@batches, [pdl(\@x), pdl(\@y)]);
+    push(@batches, [pdl(\@x)->transpose(), pdl(\@y)]);
   }
   return \@batches;
 }

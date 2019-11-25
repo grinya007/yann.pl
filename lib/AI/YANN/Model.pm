@@ -2,21 +2,12 @@ package AI::YANN::Model;
 use strict;
 use warnings;
 
-use AI::YANN::Layer;
+use PDL;
 
 sub new {
   my ($class, %args) = @_;
-  
-  my $prev_out_size;
-  my @layers = @{ $args{'layers'} };
-  for my $i (0 .. $#layers) {
-    $layers[$i]{'input_size'} = $prev_out_size if $prev_out_size;
-    $prev_out_size = $layers[$i]{'output_size'};
-    $layers[$i] = AI::YANN::Layer->from_hash($layers[$i]);
-  }
-
   return bless({
-    '_layers'     => \@layers,
+    '_output'     => $args{'output'},
     '_optimizer'  => $args{'optimizer'} // 'gradient_descent',
     '_lr'         => $args{'lr'} // 0.01,
   }, $class);
@@ -25,20 +16,15 @@ sub new {
 sub fit {
   my ($self, $x, $y) = @_;
   
-  my $y_hat = $x->transpose();
-  for my $layer (@{ $self->{'_layers'} }) {
-    $y_hat = $layer->forward($y_hat);
-  }
+  my $y_hat = $self->_forward($self->{'_output'}, $x);
 
   $y = $y->transpose();
   my $loss = $self->_loss($y_hat, $y);
 
-  my $d_y_hat = $self->_d_loss($y_hat, $y);
-  for my $layer (reverse @{ $self->{'_layers'} }) {
-    $d_y_hat = $layer->backward($d_y_hat);
-  }
+  my $d_loss = $self->_d_loss($y_hat, $y);
+  $self->_backward($self->{'_output'}, $d_loss);
 
-  $self->update();
+  $self->_update($self->{'_output'});
 
   return $loss;
 }
@@ -51,25 +37,54 @@ sub validate {
 
 sub predict {
   my ($self, $x) = @_;
-  my $y_hat = $x->transpose();
-  for my $layer (@{ $self->{'_layers'} }) {
-    $y_hat = $layer->forward($y_hat);
-  }
-  return $y_hat;
+  return $self->_forward($self->{'_output'}, $x);
 }
 
-sub update {
-  my ($self) = @_;
-  for my $layer (@{ $self->{'_layers'} }) {
-    for my $param (@{ $layer->parameters() }) {
-      if ($self->{'_optimizer'} eq 'adagrad') {
-        $self->_adagrad($param);
-      }
-      else {
-        $self->_gradient_descent($param);
-      }
+sub _update {
+  my ($self, $layer) = @_;
+  for my $param (@{ $layer->parameters() }) {
+    if ($self->{'_optimizer'} eq 'adagrad') {
+      $self->_adagrad($param);
     }
-    $layer->clean_up();
+    else {
+      $self->_gradient_descent($param);
+    }
+  }
+  $layer->clean_up();
+  if (my $input_layers = $layer->input_layers()) {
+    for (@$input_layers) {
+      $self->_update($_);
+    }
+  }
+}
+
+sub _forward {
+  my ($self, $layer, $x) = @_;
+  my $input = $x;
+  if (my $input_layers = $layer->input_layers()) {
+    $input = null();
+    for (@$input_layers) {
+      $input = $input->append(
+        $self->_forward($_, $x)->transpose()
+      );
+    }
+    $input = $input->transpose();
+  }
+  return $layer->forward($input);
+}
+
+sub _backward {
+  my ($self, $layer, $d_loss) = @_;
+  $d_loss = $layer->backward($d_loss);
+  if (my $input_layers = $layer->input_layers()) {
+    my $slice_from = 0;
+    for (@$input_layers) {
+      $self->_backward(
+        $_, $d_loss->transpose()->slice(
+          sprintf('%d:%d', $slice_from, $slice_from + $_->output_size() - 1)
+        )->transpose());
+      $slice_from += $_->output_size();
+    }
   }
 }
 
