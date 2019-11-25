@@ -6,26 +6,37 @@ use experimental 'state', 'say';
 use FindBin qw/$RealBin/;
 use lib "$RealBin/lib";
 
+use AI::YANN::Layer;
 use AI::YANN::Model::Regression;
 use JSON::XS qw/decode_json/;
 use PDL;
 
+my $lb = AI::YANN::Layer->builder();
 my $model = AI::YANN::Model::Regression->new(
-  'layers'    => [
-    { 'output_size' => 256, 'input_size' => 218, 'activation' => 'relu' },
-    { 'output_size' => 256, 'activation' => 'relu' },
-    { 'output_size' => 256, 'activation' => 'relu' },
-    { 'output_size' => 1 },
-  ],
-  'optimizer' => 'adagrad',
-  'lr'        => 0.01,
+  'lr'            => 0.01,
+  'optimizer'     => 'adagrad',
+  'output'        => $lb->('linear', 1,
+    $lb->('relu', 256,
+      $lb->('relu', 256,
+        $lb->('relu', 128,
+          $lb->('relu', 128, 16, 0),
+          $lb->('relu', 16, 2, 2),
+        ),
+      ),
+      $lb->('relu', 128,
+        $lb->('relu', 256,
+          $lb->('relu', 256, 200, 1),
+        ),
+      ),
+    ),
+  ),
 );
 
-my $b = batches(50, 50, $ARGV[0]);
-my @train = @$b[0 .. $#$b - 1];
+my $b = batches(12, 10, $ARGV[0]);
+my @train = @$b[0 .. $#$b - 2];
 my @val = @$b[$#$b - 1 .. $#$b];
 
-my $epochs = 40;
+my $epochs = 10;
 for my $epoch (1 .. $epochs) {
   my @losses;
   for my $batch (@train) {
@@ -40,7 +51,7 @@ for my $epoch (1 .. $epochs) {
   print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
 }
 
-my $tests = batches(5, 10, $ARGV[0]);
+my $tests = batches(10, 10, $ARGV[0]);
 for my $test (@$tests) {
   print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }
@@ -57,16 +68,19 @@ sub batches {
 
   my @batches;
   OUTER: for my $i (1 .. $m) {
-    my (@x, @y);
+    my (@xs, @y);
     for my $j (1 .. $n) {
       my $l = $f->{$file}->getline();
       last OUTER unless $l;
       chomp($l);
-      my ($x, $y) = decode($l);
-      push(@x, $x);
+      my ($xs, $y) = decode($l);
+      for my $k (0 .. $#$xs) {
+        $xs[$k] ||= [];
+        push(@{ $xs[$k] }, $xs->[$k]);
+      }
       push(@y, $y);
     }
-    push(@batches, [pdl(\@x), pdl(\@y)]);
+    push(@batches, [[ map { pdl($_) } @xs ], pdl(\@y)]);
   }
   return \@batches;
 }
@@ -89,8 +103,8 @@ sub decode {
     memory_usage
   /} = split /:/, $line;
 
-  my @x;
-  push(@x, $l{'is_parallel'});
+  my @x0;
+  push(@x0, $l{'is_parallel'});
 
   state $stage = {
     'initial' => 0,
@@ -99,12 +113,14 @@ sub decode {
   };
   my @stage_oh = (0) x scalar(keys %$stage);
   $stage_oh[$stage->{$l{'stage'}}] = 1 if $l{'stage'};
-  push(@x, @stage_oh);
+  push(@x0, @stage_oh);
 
-  push(@x, @l{qw/is_sens ramp_rates storage_modelling uc/});
+  my @x1;
+  push(@x0, @l{qw/is_sens ramp_rates storage_modelling uc/});
 
-  push(@x, $l{'step_length'} / 100);
-  push(@x, $l{'step_count'} / 1000);
+  my @x2;
+  push(@x2, $l{'step_length'} / 100);
+  push(@x2, $l{'step_count'} / 1000);
 
   state $step = {
     '24'    => 0,
@@ -113,8 +129,9 @@ sub decode {
   };
   my @step_oh = (0) x scalar(keys %$step);
   $step_oh[$step->{$l{'step_unit'}}] = 1;
-  push(@x, @step_oh);
+  push(@x0, @step_oh);
 
+  my @x3;
   state $countries = {};
   my $cids = decode_json($l{'country_ids'});
   for my $cid (@$cids) {
@@ -122,8 +139,9 @@ sub decode {
   }
   my @countries_oh = (0) x 200;
   @countries_oh[@$countries{@$cids}] = (1) x scalar(@$cids);
-  push(@x, @countries_oh);
+  push(@x1, @countries_oh);
 
+  my @x4;
   state $agg = {
     'None'        => 0,
     'Main_focus'  => 1,
@@ -133,7 +151,8 @@ sub decode {
   };
   my @agg_oh = (0) x scalar(keys %$agg);
   $agg_oh[$agg->{$l{'aggregation'}}] = 1;
-  push(@x, @agg_oh);
+  push(@x0, @agg_oh);
 
-  return \@x, [ $l{'memory_usage'} / 1024 ** 3 ];
+  #         16     200   2
+  return [ \@x0, \@x1, \@x2 ], [ $l{'memory_usage'} / 1024 ** 3 ];
 }

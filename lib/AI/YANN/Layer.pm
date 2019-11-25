@@ -94,8 +94,9 @@ sub backward {
   return $self->{'_W'}->value()->transpose() x $d_activation_out;
 }
 
-# activation, d(activation)/d(linear_out)
+# activation
 sub _forward  { ... }
+# d(activation)/d(linear_out)
 sub _backward { ... }
 
 
