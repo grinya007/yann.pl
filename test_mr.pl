@@ -15,16 +15,16 @@ my $lb = AI::YANN::Layer->builder();
 my $model = AI::YANN::Model::Regression->new(
   'lr'            => 0.01,
   'optimizer'     => 'adagrad',
-  'output'        => $lb->('linear', 1,
+  'output'        => $lb->('relu', 1,
     $lb->('relu', 256,
       $lb->('relu', 256,
-        $lb->('relu', 128,
-          $lb->('relu', 128, 16, 0),
-          $lb->('relu', 16, 2, 2),
+        $lb->('relu', 256,
+          $lb->('relu', 128, 18, 0),
+          $lb->('relu', 64, 6, 2),
         ),
       ),
       $lb->('relu', 128,
-        $lb->('relu', 256,
+        $lb->('relu', 128,
           $lb->('relu', 256, 200, 1),
         ),
       ),
@@ -32,9 +32,9 @@ my $model = AI::YANN::Model::Regression->new(
   ),
 );
 
-my $b = batches(12, 10, $ARGV[0]);
-my @train = @$b[0 .. $#$b - 2];
-my @val = @$b[$#$b - 1 .. $#$b];
+my $b = batches(130, 1, $ARGV[0]);
+my @train = @$b[0 .. $#$b - 20];
+my @val = @$b[$#$b - 19 .. $#$b];
 
 my $epochs = 10;
 for my $epoch (1 .. $epochs) {
@@ -51,19 +51,19 @@ for my $epoch (1 .. $epochs) {
   print "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
 }
 
-my $tests = batches(10, 10, $ARGV[0]);
+my $tests = batches(1, 13, $ARGV[0]);
 for my $test (@$tests) {
   print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }
 print "\n";
 
 sub batches {
-  my ($m, $n, $file, $tail) = @_;
+  my ($m, $n, $file) = @_;
 
   state $f = {};
   unless ($f->{$file}) {
-    open($f->{$file}, "zcat $file |". ($tail ? ' tail -n '.($m*$n).' |' : ''));
-    $f->{$file}->getline();
+    open($f->{$file}, "cat $file |");
+    #$f->{$file}->getline();
   }
 
   my @batches;
@@ -89,6 +89,20 @@ sub decode {
   my ($line) = @_;
   my %l;
   @l{qw/
+    connections_count
+    has_fb
+    hydro_ps_count
+    hydro_res_count
+    new_builds_count
+    plants_count
+    ramp_rates_n
+    responses_count
+    step_length_n
+    steps
+    storage_modelling_n
+    unit_commitment
+    wheeling_costs
+    zones_count
     is_parallel
     stage
     is_sens
@@ -115,12 +129,7 @@ sub decode {
   $stage_oh[$stage->{$l{'stage'}}] = 1 if $l{'stage'};
   push(@x0, @stage_oh);
 
-  my @x1;
-  push(@x0, @l{qw/is_sens ramp_rates storage_modelling uc/});
-
-  my @x2;
-  push(@x2, $l{'step_length'} / 100);
-  push(@x2, $l{'step_count'} / 1000);
+  push(@x0, @l{qw/is_sens ramp_rates storage_modelling uc has_fb wheeling_costs/});
 
   state $step = {
     '24'    => 0,
@@ -131,17 +140,6 @@ sub decode {
   $step_oh[$step->{$l{'step_unit'}}] = 1;
   push(@x0, @step_oh);
 
-  my @x3;
-  state $countries = {};
-  my $cids = decode_json($l{'country_ids'});
-  for my $cid (@$cids) {
-    $countries->{$cid} //= scalar(keys %$countries);
-  }
-  my @countries_oh = (0) x 200;
-  @countries_oh[@$countries{@$cids}] = (1) x scalar(@$cids);
-  push(@x1, @countries_oh);
-
-  my @x4;
   state $agg = {
     'None'        => 0,
     'Main_focus'  => 1,
@@ -153,6 +151,24 @@ sub decode {
   $agg_oh[$agg->{$l{'aggregation'}}] = 1;
   push(@x0, @agg_oh);
 
-  #         16     200   2
+  my @x1;
+  state $countries = {};
+  my $cids = decode_json($l{'country_ids'});
+  for my $cid (@$cids) {
+    $countries->{$cid} //= scalar(keys %$countries);
+  }
+  my @countries_oh = (0) x 200;
+  @countries_oh[@$countries{@$cids}] = (1) x scalar(@$cids);
+  push(@x1, @countries_oh);
+
+  my @x2;
+  push(@x2, $l{'step_length'} / 100);
+  push(@x2, $l{'step_count'} / 100);
+  push(@x2, $l{'plants_count'} / 1000);
+  push(@x2, $l{'zones_count'} / 100);
+  push(@x2, $l{'connections_count'} / 100);
+  push(@x2, $l{'responses_count'} / 100);
+
+  #         18     200   5
   return [ \@x0, \@x1, \@x2 ], [ $l{'memory_usage'} / 1024 ** 3 ];
 }
