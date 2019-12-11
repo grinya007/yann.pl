@@ -11,53 +11,14 @@ use AI::YANN::Model::Regression;
 use JSON::XS qw/decode_json/;
 use PDL;
 
-my $lb = AI::YANN::Layer->builder();
-my $model = AI::YANN::Model::Regression->new(
-  'lr'            => 0.01,
-  'optimizer'     => 'adagrad',
-  'output'        => $lb->('relu', 1,
-    $lb->('relu', 256,
-      #$lb->('relu', 256,
-        $lb->('relu', 256,
-          $lb->('relu', 128, 18, 0),
-          $lb->('relu', 64, 6, 2),
-        ),
-      #),
-      #$lb->('relu', 128,
-        $lb->('relu', 128,
-          $lb->('relu', 256, 200, 1),
-        ),
-      #),
-    ),
-  ),
-);
+my $model = AI::YANN::Model::Regression->thaw(join('', `cat $ARGV[0]`));
 
-my $b = batches(65, 2, $ARGV[0]);
-my @train = @$b[0 .. $#$b];
-my @val = @$b[$#$b - 5 .. $#$b];
-
-my $epochs = 10;
-for my $epoch (1 .. $epochs) {
-  my @losses;
-  for my $batch (@train) {
-    my $loss = $model->fit(@$batch);
-    push(@losses, $loss);
-  }
-  my @vlosses;
-  for my $batch (@val) {
-    my $loss = $model->validate(@$batch);
-    push(@vlosses, $loss);
-  }
-  warn "$epoch/$epochs loss: ", pdl(\@losses)->avg(), " val_loss: ", pdl(\@vlosses)->avg(), "\n";
-}
-
-my $tests = batches(10, 10, $ARGV[1]);
+my $tests = batches(1000, 5, $ARGV[1]);
 for my $test (@$tests) {
-  warn "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
+  print "\n", $model->predict($test->[0])->flat(), "\n", $test->[1]->flat(), "\n";
 }
-warn "\n";
+print "\n";
 
-print $model->freeze();
 
 sub batches {
   my ($m, $n, $file) = @_;

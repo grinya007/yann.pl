@@ -3,14 +3,20 @@ use strict;
 use warnings;
 
 use Carp qw/confess/;
+use Data::MessagePack;
+use PDL::IO::FlexRaw qw/readflex writeflex/;
+use Scalar::Util qw/blessed/;
 
 use base 'Exporter';
 our @EXPORT = qw//; 
 our @EXPORT_OK = qw//;
 our %EXPORT_TAGS = (
   'DATA'    => [qw/
+    instance_of
     is_int
     is_num
+    pdl_freeze
+    pdl_thaw
   /],
   'SYSTEM'  => [qw/
     runtime_require
@@ -40,6 +46,11 @@ sub is_num {
   return 1;
 }
 
+sub instance_of {
+  my ($var, $class) = @_;
+  return blessed($var) && $var->isa($class);
+}
+
 sub runtime_require {
   my ($pkg_name, %opts) = @_;
   confess(
@@ -64,6 +75,41 @@ sub runtime_require {
     }
   }
   return $pkg_name;
+}
+
+my $_mp;
+sub _mp {
+  unless ($_mp) {
+    $_mp = Data::MessagePack->new();
+    $_mp->prefer_integer();
+  }
+  return $_mp;
+}
+
+sub pdl_freeze {
+  my ($pdl) = @_;
+  confess('Bad PDL object') unless (
+    instance_of($pdl, 'PDL')
+  );
+
+  open(my $sfh, '>', \my $pdl_raw);
+  my $hdr = writeflex($sfh, $pdl);
+  close($sfh);
+
+  return pack('(L/a)2', $pdl_raw, _mp()->pack($hdr));
+}
+
+sub pdl_thaw {
+  my ($data) = @_;
+  use bytes;
+  confess('Bad blob') unless (
+    defined($data) && !ref($data) && length($data) > 8
+  );
+
+  my ($pdl_raw, $hdr_raw) = unpack('(L/a)2', $data);
+  open(my $pdl_sfh, '<', \$pdl_raw);
+
+  return readflex($pdl_sfh, _mp()->unpack($hdr_raw));
 }
 
 

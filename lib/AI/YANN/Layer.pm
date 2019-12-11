@@ -7,15 +7,15 @@ use AI::YANN::Utils qw/is_num runtime_require/;
 use Carp qw/confess/;
 
 sub new {
-  my ($class, $activation, $out_size, $in_size, $input_idx, $weight_sd, $input_layers) = @_;
+  my ($class, $activation, $out_size, $in_size, $input_idx, $weight_sd, $input_layers, $W, $b) = @_;
   confess("Input size isn't numeric") unless (is_num($in_size));
   confess("Output size isn't numeric") unless (is_num($out_size));
   $activation   //= 'linear';
   $weight_sd    //= 0.1;
 
   return bless({
-    '_W'              => AI::YANN::Parameter->new($in_size, $out_size, $weight_sd),
-    '_b'              => AI::YANN::Parameter->new(1, $out_size, $weight_sd),
+    '_W'              => $W // AI::YANN::Parameter->new($in_size, $out_size, $weight_sd),
+    '_b'              => $b // AI::YANN::Parameter->new(1, $out_size, $weight_sd),
     '_input_idx'      => $input_idx,
     '_input_layers'   => $input_layers,
     '_input_size'     => $in_size,
@@ -44,6 +44,51 @@ sub builder {
     }
     return $class->new(@new_args);
   };
+}
+
+sub freeze {
+  my ($self) = @_;
+  my $input_layers = pack('(L/a)*', map {
+    $_->freeze()
+  } @{ $self->{'_input_layers'} });
+  return pack(
+    'LLL(L/a)4',
+    $self->{'_input_size'},
+    $self->{'_output_size'},
+    $self->{'_input_idx'} // 100500,
+    (split /::/, ref($self))[-1],
+    $self->{'_W'}->freeze(),
+    $self->{'_b'}->freeze(),
+    $input_layers,
+  );
+}
+
+sub thaw {
+  my ($class, $blob) = @_;
+  my (
+    $input_size,
+    $output_size,
+    $input_idx,
+    $activation,
+    $W,
+    $b,
+    $input_layers
+  ) = unpack('LLL(L/a)4', $blob);
+  $W = AI::YANN::Parameter->thaw($W);
+  $b = AI::YANN::Parameter->thaw($b);
+  $input_layers = [ map {
+      $class->thaw($_)
+  } unpack('(L/a)*', $input_layers) ];
+  return $class->new(
+    $activation,
+    $output_size,
+    $input_size,
+    ($input_idx < 100500 ? $input_idx : undef),
+    undef,
+    (scalar(@$input_layers) ? $input_layers : undef),
+    $W,
+    $b
+  );
 }
 
 sub input_layers {

@@ -2,6 +2,7 @@ package AI::YANN::Model;
 use strict;
 use warnings;
 
+use AI::YANN::Layer;
 use PDL;
 
 sub new {
@@ -11,6 +12,26 @@ sub new {
     '_optimizer'  => $args{'optimizer'} // 'gradient_descent',
     '_lr'         => $args{'lr'} // 0.01,
   }, $class);
+}
+
+sub freeze {
+  my ($self) = @_;
+  return pack(
+    '(L/a)2d',
+    $self->{'_output'}->freeze(),
+    $self->{'_optimizer'},
+    $self->{'_lr'},
+  );
+}
+
+sub thaw {
+  my ($class, $blob) = @_;
+  my ($output, $optimizer, $lr) = unpack('(L/a)2d', $blob);
+  return $class->new(
+    'output'      => AI::YANN::Layer->thaw($output),
+    'optimizer'   => $optimizer,
+    'lr'          => $lr,
+  );
 }
 
 sub fit {

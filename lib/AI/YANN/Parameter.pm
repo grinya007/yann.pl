@@ -2,15 +2,15 @@ package AI::YANN::Parameter;
 use strict;
 use warnings;
 
+use AI::YANN::Utils qw/pdl_freeze pdl_thaw/;
 use PDL;
 
 sub new {
-  my ($class, $m, $n, $sd) = @_;
-  my $value     = grandom($m, $n) * $sd;
+  my ($class, $m, $n, $sd, $value, $momentum) = @_;
   return bless({
-    '_value'    => $value,
+    '_value'    => $value // grandom($m, $n) * $sd,
+    '_momentum' => $momentum // 0,
     '_gradient' => undef,
-    '_momentum' => 0,
   }, $class);
 }
 
@@ -42,6 +42,25 @@ sub momentum {
 sub add_momentum {
   my ($self, $m) = @_;
   $self->{'_momentum'} += $m;
+}
+
+sub freeze {
+  my ($self) = @_;
+  return pack(
+    '(L/a)2',
+    pdl_freeze($self->{'_value'}),
+    pdl_freeze($self->{'_momentum'}),
+  );
+}
+
+sub thaw {
+  my ($class, $blob) = @_;
+  my ($value, $momentum) = unpack('(L/a)2', $blob);
+  $value = pdl_thaw($value);
+  $momentum = pdl_thaw($momentum);
+  return $class->new(
+    undef, undef, undef, $value, $momentum
+  );
 }
 
 1;
